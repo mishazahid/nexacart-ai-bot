@@ -1,0 +1,37 @@
+/* ---- Chat container ---- */
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* ---- Message entrance keyframe (mirrors index.css for use in plain CSS) ---- */
+@keyframes messageEnter {
+  0%   { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.message-enter {
+  animation: messageEnter 0.3s ease forwards;
+}
+
+/* ---- Source card expand/collapse transition ---- */
+.source-card {
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+/* ---- Confidence ring SVG animation ---- */
+@keyframes drawRing {
+  from { stroke-dashoffset: 31.416; } /* full circumference of r=5 */
+  to   { stroke-dashoffset: var(--ring-offset, 0); }
+}
+
+.confidence-ring {
+  transition: stroke-dashoffset 0.6s ease;
+}
+
+/* ---- Prose overrides for assistant markdown output ---- */
+.prose p:first-child { margin-top: 0; }
+.prose p:last-child  { margin-bottom: 0; }
+.prose ul            { padding-left: 1.25rem; }
+.prose li::marker    { color: #6b7280; }
