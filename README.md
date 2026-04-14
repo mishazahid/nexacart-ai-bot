@@ -1,88 +1,112 @@
 # NexaCart AI Support Bot
 
-A production-ready **RAG (Retrieval-Augmented Generation)** customer support chatbot built with FastAPI, React, and OpenAI. It answers customer questions about shipping, returns, exchanges, payments, and account management using a hybrid BM25 + FAISS retrieval pipeline.
+A production-ready **RAG (Retrieval-Augmented Generation)** customer support chatbot for an e-commerce store. It answers customer questions about shipping, returns, exchanges, payments, and account management using a hybrid BM25 + FAISS vector retrieval pipeline powered by OpenAI.
+
+**Live Demo:** [nexacart-ai-bot.vercel.app](https://nexacart-ai-bot-git-master-mishazahids-projects.vercel.app)
 
 ---
 
 ## Features
 
-- **Hybrid Retrieval** — Combines BM25 keyword search (weight 0.45) and FAISS dense vector search (weight 0.55) for best-of-both recall and precision
-- **Confidence Scoring** — Weighted scoring of top-3 results; falls back to a human-support escalation message below the threshold
-- **Streaming-ready FastAPI** backend with SQLite chat logging
-- **React 18 frontend** with Tailwind CSS, animated typing indicator, collapsible source cards, and confidence badges
-- **Fully Dockerised** with Docker Compose for one-command deployment
-- **50-question eval dataset** and pytest test suite for ingestion, retrieval, and API
+- **Hybrid Retrieval** — Combines BM25 keyword search (weight 0.45) and FAISS dense vector search (weight 0.55)
+- **Confidence Scoring** — Weighted scoring of top-3 results; falls back to human-support escalation below threshold
+- **Conversation History** — Passes last 6 turns to OpenAI for context-aware follow-up answers
+- **Greeting Handler** — Detects greetings and small talk before triggering the RAG pipeline
+- **FastAPI Backend** — REST API with SQLite chat logging
+- **React 18 Frontend** — Tailwind CSS, typing indicator, collapsible source cards, confidence badges, online/offline status
+- **Dockerised** — Both services have Dockerfiles for containerised deployment
+- **50-question Eval Dataset** — Covers all 5 topics with edge cases
+- **pytest Test Suite** — Tests for ingestion, retrieval, and API
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, Tailwind CSS |
+| Backend | FastAPI, Python 3.11 |
+| Embeddings | sentence-transformers (all-MiniLM-L6-v2) |
+| Vector DB | FAISS (CPU) |
+| Keyword Search | BM25 (rank-bm25) |
+| LLM | OpenAI GPT-3.5-turbo |
+| Database | SQLite (via SQLAlchemy) |
+| Deployment | Vercel (frontend) + Railway (backend) |
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        User / Browser                       │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ HTTP (port 3000)
-┌──────────────────────────▼──────────────────────────────────┐
-│               React Frontend (Tailwind CSS)                 │
-│  WelcomeScreen · ChatWindow · MessageBubble · SourceCard    │
-│  ConfidenceBadge · InputBar · TypingIndicator               │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ POST /chat  (port 8000)
-┌──────────────────────────▼──────────────────────────────────┐
-│                  FastAPI Backend                             │
-│  /chat  · /ingest  · /health                                │
-└──────────┬───────────────────────────────────────────────────┘
-           │
-   ┌───────▼────────────────────────────────┐
-   │         Hybrid Retrieval Layer         │
-   │  ┌──────────────┐  ┌────────────────┐  │
-   │  │  BM25 Search │  │  FAISS Vector  │  │
-   │  │  (weight 0.45│  │  (weight 0.55) │  │
-   │  └──────┬───────┘  └───────┬────────┘  │
-   │         └────────┬─────────┘           │
-   │                  │ Weighted fusion      │
-   │         final_score = 0.45*bm25        │
-   │                        + 0.55*vector   │
-   └──────────────────┬─────────────────────┘
-                      │ Top-K chunks + confidence score
-   ┌──────────────────▼──────────────────────────────────────┐
-   │               Confidence Scorer                         │
-   │  score ≥ 0.35 → OpenAI GPT-3.5                          │
-   │  score < 0.35 → Fallback escalation message             │
-   └──────────────────┬──────────────────────────────────────┘
-                      │
-   ┌──────────────────▼──────────────────────────────────────┐
-   │              OpenAI Chat Completions API                 │
-   │         (gpt-3.5-turbo, temperature 0.2)                 │
-   └─────────────────────────────────────────────────────────┘
+User → React Frontend (Vercel)
+           ↓ POST /chat
+       FastAPI Backend (Railway)
+           ↓
+    Hybrid Retrieval Layer
+    ┌─────────────┐  ┌──────────────┐
+    │ BM25 Search │  │ FAISS Vector │
+    │  (0.45)     │  │  (0.55)      │
+    └──────┬──────┘  └──────┬───────┘
+           └────────┬────────┘
+              Weighted Fusion
+         final_score = 0.45×bm25 + 0.55×vector
+                    ↓
+          Confidence Scorer
+          score ≥ 0.35 → OpenAI GPT-3.5-turbo
+          score < 0.35 → Fallback escalation
 ```
 
 ---
 
-## Prerequisites
+## Knowledge Base
 
-- Python 3.11+
-- Node.js 20+
-- An **OpenAI API key** (`gpt-3.5-turbo` access)
-- Docker + Docker Compose (for containerised deployment only)
+The bot answers questions from 5 Markdown policy files:
+
+| File | Topics Covered |
+|---|---|
+| `shipping_policy.md` | Shipping times, costs, carriers, tracking, free shipping |
+| `return_policy.md` | Return window, refunds, non-returnable items, store credit |
+| `exchange_policy.md` | Exchange process, pricing differences, international orders |
+| `payment_methods.md` | Accepted methods, BNPL, gift cards, promo codes, failed payments |
+| `account_help.md` | Password reset, 2FA, order history, account deletion, data download |
 
 ---
 
-## Local Development Setup
+## Local Development
+
+### Prerequisites
+- Python 3.11+
+- Node.js 20+
+- OpenAI API key
 
 ### 1. Clone the repository
 
 ```bash
-git clone <your-repo-url>
-cd nexacart-ai-support-bot
+git clone https://github.com/mishazahid/nexacart-ai-bot.git
+cd nexacart-ai-bot
 ```
 
-### 2. Configure the backend environment
+### 2. Set up the backend
 
 ```bash
 cd backend
-cp .env.example .env
-# Edit .env and set your OPENAI_API_KEY and INGEST_KEY
+
+# Create .env file
+copy .env.example .env   # Windows
+# OR
+cp .env.example .env     # Mac/Linux
+
+# Edit .env and add your OPENAI_API_KEY
+```
+
+**.env file contents:**
+```
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_MODEL=gpt-3.5-turbo
+EMBEDDING_MODEL=all-MiniLM-L6-v2
+CONFIDENCE_THRESHOLD=0.35
+DATABASE_URL=sqlite:///data/nexacart.db
+LOG_LEVEL=INFO
 ```
 
 ### 3. Install Python dependencies
@@ -91,36 +115,27 @@ cp .env.example .env
 pip install -r requirements.txt
 ```
 
-### 4. Run the ingestion pipeline
-
-This step loads the Markdown knowledge base, chunks it, generates embeddings,
-and builds the FAISS + BM25 indexes.
+### 4. Start the backend
 
 ```bash
-python src/ingestion/pipeline.py
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Expected output:
-```
-Ingestion Summary:
-  status: success
-  total_docs: 5
-  total_chunks: 42
-  time_taken_seconds: 8.34
-```
+### 5. Run the ingestion pipeline
 
-### 5. Start the backend
+In a new terminal:
 
-```bash
-uvicorn app.main:app --reload --port 8000
+```powershell
+# Windows PowerShell
+Invoke-WebRequest -Uri http://localhost:8000/ingest -Method POST
+
+# Mac/Linux
+curl -X POST http://localhost:8000/ingest
 ```
-
-API is now available at `http://localhost:8000`.
-Interactive docs: `http://localhost:8000/docs`
 
 ### 6. Start the frontend
 
-In a separate terminal:
+In another terminal:
 
 ```bash
 cd frontend
@@ -128,11 +143,13 @@ npm install
 npm start
 ```
 
-Frontend is now available at `http://localhost:3000`.
+- Frontend: `http://localhost:3000`
+- Backend API: `http://localhost:8000`
+- Swagger Docs: `http://localhost:8000/docs`
 
 ---
 
-## API Documentation
+## API Reference
 
 ### `POST /chat`
 
@@ -142,14 +159,18 @@ Send a customer support query.
 ```json
 {
   "query": "How long does shipping take?",
-  "session_id": "optional-uuid-for-session-continuity"
+  "session_id": "optional-uuid",
+  "history": [
+    { "role": "user", "content": "previous question" },
+    { "role": "assistant", "content": "previous answer" }
+  ]
 }
 ```
 
 **Response:**
 ```json
 {
-  "answer": "Standard shipping takes 3–5 business days for $4.99...",
+  "answer": "Standard shipping takes 3–5 business days for $4.99.",
   "session_id": "550e8400-e29b-41d4-a716-446655440000",
   "confidence_score": 0.82,
   "is_fallback": false,
@@ -164,15 +185,10 @@ Send a customer support query.
 }
 ```
 
----
-
 ### `POST /ingest`
 
 Rebuild the knowledge base indexes from Markdown files.
 
-**Headers:** `X-Ingest-Key: <your INGEST_KEY>`
-
-**Response:**
 ```json
 {
   "status": "success",
@@ -182,15 +198,10 @@ Rebuild the knowledge base indexes from Markdown files.
 }
 ```
 
-Returns `403` if the key is missing or incorrect.
-
----
-
 ### `GET /health`
 
 Liveness/readiness probe.
 
-**Response:**
 ```json
 {
   "status": "ok",
@@ -204,59 +215,44 @@ Liveness/readiness probe.
 
 ## How Hybrid Retrieval Works
 
-The bot uses **two complementary retrieval methods** fused by a weighted formula:
-
 | Component | Method | Weight |
-|-----------|--------|--------|
-| BM25 (Okapi BM25) | Keyword frequency + IDF | **0.45** |
-| FAISS vector search | Sentence embeddings (all-MiniLM-L6-v2) | **0.55** |
+|---|---|---|
+| BM25 | Keyword frequency + IDF | 0.45 |
+| FAISS | Sentence embeddings (all-MiniLM-L6-v2) | 0.55 |
 
-**Fusion formula:**
 ```
 final_score = 0.45 × bm25_score + 0.55 × vector_score
 ```
-
-- **BM25** excels at exact keyword matching (policy names, product names, specific terms)
-- **Vector search** excels at semantic similarity (paraphrased questions, conceptual queries)
-- **Weighted fusion** combines both so neither lexical nor semantic queries fall through
 
 **Confidence scoring** uses a weighted average of the top-3 results:
 - 1st result: 50% weight
 - 2nd result: 30% weight
 - 3rd result: 20% weight
 
-If the final score is below `0.35`, the bot escalates to a human support message rather than hallucinating.
+If the final score is below `0.35`, the bot returns a fallback escalation message instead of hallucinating.
 
 ---
 
-## Docker Deployment
+## Deployment
 
-### Build and start all services
+### Frontend — Vercel
 
-```bash
-# 1. Copy and fill in .env
-cp backend/.env.example backend/.env
-# Edit backend/.env with your OPENAI_API_KEY
+1. Connect GitHub repo on [vercel.com](https://vercel.com)
+2. Set Root Directory: `frontend`
+3. Add environment variable: `REACT_APP_API_URL=<your-railway-backend-url>`
+4. Deploy
 
-# 2. Start services
-docker compose up --build -d
+### Backend — Railway
 
-# 3. Run the ingestion pipeline inside the backend container
-docker compose exec backend python src/ingestion/pipeline.py
-
-# 4. Verify health
-curl http://localhost:8000/health
-```
-
-- Frontend: `http://localhost:3000`
-- Backend API: `http://localhost:8000`
-- API docs: `http://localhost:8000/docs`
-
-### Stop services
-
-```bash
-docker compose down
-```
+1. Connect GitHub repo on [railway.app](https://railway.app)
+2. Set Root Directory: `backend`
+3. Builder: `Dockerfile` (auto-detected)
+4. Add environment variables:
+   - `OPENAI_API_KEY`
+   - `OPENAI_MODEL=gpt-3.5-turbo`
+   - `EMBEDDING_MODEL=all-MiniLM-L6-v2`
+   - `CONFIDENCE_THRESHOLD=0.35`
+5. Deploy
 
 ---
 
@@ -264,17 +260,7 @@ docker compose down
 
 ```bash
 cd backend
-
-# Run ingestion first (creates indexes)
-python src/ingestion/pipeline.py
-
-# Run all tests
 pytest tests/ -v
-
-# Run specific suites
-pytest tests/test_ingestion.py -v
-pytest tests/test_retrieval.py -v
-pytest tests/test_api.py -v
 ```
 
 ---
@@ -282,23 +268,31 @@ pytest tests/test_api.py -v
 ## Project Structure
 
 ```
-nexacart-ai-support-bot/
+nexacart-ai-bot/
 ├── backend/
-│   ├── app/               # FastAPI app: config, models, DB, logger, main
-│   ├── knowledge_base/    # 5 Markdown policy files
+│   ├── app/                  # FastAPI app (config, models, DB, logger, main)
+│   ├── knowledge_base/       # 5 Markdown policy files
 │   ├── src/
-│   │   ├── ingestion/     # Document loader, chunker, pipeline
-│   │   ├── retrieval/     # BM25, vector, and hybrid search
-│   │   ├── llm/           # Prompt builder and OpenAI generator
-│   │   └── confidence/    # Scorer and fallback logic
-│   ├── data/              # FAISS index, BM25 pickle, SQLite DB, logs
-│   └── tests/             # pytest suites + 50-question eval dataset
+│   │   ├── ingestion/        # Document loader, chunker, pipeline
+│   │   ├── retrieval/        # BM25, vector, and hybrid search
+│   │   ├── llm/              # Prompt builder and OpenAI generator
+│   │   └── confidence/       # Scorer and fallback logic
+│   ├── tests/                # pytest suites + 50-question eval dataset
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── start.sh              # Startup script (runs ingestion then server)
 └── frontend/
-    ├── public/            # index.html
+    ├── public/
     └── src/
-        ├── api/           # Axios API client
-        ├── components/    # React components
-        ├── hooks/         # useChat custom hook
-        ├── styles/        # Tailwind + custom CSS
-        └── utils/         # Helper functions
+        ├── api/              # Axios API client
+        ├── components/       # React UI components
+        ├── hooks/            # useChat custom hook
+        ├── styles/           # Tailwind + custom CSS
+        └── utils/            # Helper functions
 ```
+
+---
+
+## Author
+
+Built by **Misha** — [github.com/mishazahid](https://github.com/mishazahid)
